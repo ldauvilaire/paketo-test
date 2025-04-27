@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.18</version>
+    </parent>
+
+    <groupId>net.ldauvilaire.sample</groupId>
+    <artifactId>paketo</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>Paketo Test</name>
+    <description>Demo project for Spring Boot with Paketo Buildpacks</description>
+
+    <properties>
+        <java.version>8</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-spring-boot-starter-jaxrs</artifactId>
+            <version>3.5.10</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Build the application and the oci-image -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>spring-boot-build</id>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                        <phase>package</phase>
+                    </execution>
+                    <execution>
+                        <id>spring-boot-image</id>
+                        <goals>
+                            <goal>build-image</goal>
+                        </goals>
+                        <phase>install</phase>
+                        <configuration>
+                            <skip>false</skip>
+                            <image>
+                                <builder>paketocommunity/builder-ubi-base</builder>
+                                <name>ldauvilaire/paketo-test:${project.version}</name>
+                                <publish>false</publish>
+                                <env>
+                                    <!-- proxy to allow buildpacks to download from github -->
+                                    <BP_DEPENDENCY_MIRROR_GITHUB_COM>${MIRROR_GITHUB}</BP_DEPENDENCY_MIRROR_GITHUB_COM>
+                                    <!-- Java -->
+                                    <BP_JVM_TYPE>JRE</BP_JVM_TYPE>
+                                    <BP_JVM_VERSION>8</BP_JVM_VERSION>
+                                    <BP_JATTACH_ENABLED>true</BP_JATTACH_ENABLED>
+                                    <BPL_JMX_ENABLED>true</BPL_JMX_ENABLED>
+                                    <BPL_JVM_THREAD_COUNT>1000</BPL_JVM_THREAD_COUNT>
+                                    <!-- Certificates -->
+                                    <BP_EMBED_CERTS>true</BP_EMBED_CERTS>
+                                    <BP_ENABLE_RUNTIME_CERT_BINDING>true</BP_ENABLE_RUNTIME_CERT_BINDING>
+                                    <!-- Spring Boot -->
+                                    <BP_SPRING_CLOUD_BINDINGS_DISABLED>false</BP_SPRING_CLOUD_BINDINGS_DISABLED>
+                                </env>
+                                <buildpacks>
+                                    <buildpack>paketo-buildpacks/bellsoft-liberica</buildpack>
+                                    <buildpack>paketo-buildpacks/ca-certificates</buildpack>
+                                    <buildpack>paketo-buildpacks/java</buildpack>
+                                    <buildpack>paketo-buildpacks/image-labels</buildpack>
+                                    <buildpack>paketo-buildpacks/spring-boot</buildpack>
+                                </buildpacks>
+                                <verboseLogging>true</verboseLogging>
+                            </image>
+                            <layers>
+                                <enabled>true</enabled>
+                            </layers>
+                            <docker>
+                                <tlsVerify>false</tlsVerify>
+                            </docker>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Run the oci-image -->
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>0.46.0</version>
+                <configuration>
+                    <skip>false</skip>
+                    <showLogs>true</showLogs>
+                    <logDate>true</logDate>
+                    <useColor>true</useColor>
+                    <containerNamePattern>%n</containerNamePattern>
+                    <images>
+                        <image>
+                            <name>ldauvilaire/paketo-test:${project.version}</name>
+                            <alias>${project.artifactId}</alias>
+                            <run>
+                                <env>
+                                    <JAVA_TOOL_OPTIONS>
+                                        -Duser.timezone=UTC
+                                        -Djava.awt.headless=true
+                                        -Dspring.config.location=classpath:application.properties,/configuration/application.properties
+                                    </JAVA_TOOL_OPTIONS>
+                                    <SERVICE_BINDING_ROOT>/platform/bindings</SERVICE_BINDING_ROOT>
+                                    <BPL_JMX_ENABLED>true</BPL_JMX_ENABLED>
+                                    <BPL_JVM_THREAD_COUNT>300</BPL_JVM_THREAD_COUNT>
+                                </env>
+                                <autoRemove>true</autoRemove>
+                                <ports>
+                                    <port>8080:8080</port>
+                                    <port>8888:8888</port>
+                                </ports>
+                                <volumes>
+                                    <bind>
+                                        <volume>${project.basedir}/src/test/configuration:/configuration</volume>
+                                        <volume>${project.basedir}/src/test/bindings:/platform/bindings</volume>
+                                    </bind>
+                                </volumes>
+                            </run>
+                        </image>
+                    </images>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
